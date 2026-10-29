@@ -1,0 +1,122 @@
+// ============================================================
+//  Linguagem de domótica: gramática Lark (LALR(1), lexer "basic")
+//  Reflete a especificação A.2 a A.7 do relatório.
+// ============================================================
+
+start: program
+
+// ---------------- estrutura ----------------
+program: "home" STRING "{" decl* "}"
+
+?decl: zone_decl
+     | device_decl
+     | var_decl
+     | group_decl
+     | scene_decl
+     | rule_decl
+
+zone_decl:   "zone" ID "{" decl* "}"
+device_decl: "device" ID ":" ID ";"
+var_decl:    "var"   ID ":" type "=" expr ";"   -> var_decl
+           | "const" ID ":" type "=" expr ";"   -> const_decl
+group_decl:  "group" ID "=" "[" ref ("," ref)* "]" ";"
+scene_decl:  "scene" ID block
+
+type: "int"    -> t_int
+    | "real"   -> t_real
+    | "bool"   -> t_bool
+    | "string" -> t_string
+    | "time"   -> t_time
+
+// ---------------- regras e eventos ----------------
+rule_decl: "rule" ID priority? ON event guard? block
+priority:  "priority" INT
+guard:     "when" expr
+
+?event: "change" ref     -> ev_change
+      | "signal" ref     -> ev_signal
+      | "at" TIME        -> ev_at
+      | "every" duration -> ev_every
+
+duration: INT unit
+unit: "sec"  -> u_sec
+    | "min"  -> u_min
+    | "hour" -> u_hour
+
+// ---------------- instruções ----------------
+block: "{" stmt* "}"
+
+?stmt: var_decl
+     | ref "=" expr ";"            -> assign
+     | ref "(" args? ")" ";"       -> command
+     | if_stmt
+     | repeat_stmt
+     | for_stmt
+     | "wait" duration ";"         -> wait
+     | "notify" STRING ";"         -> notify
+     | "activate" ref ";"          -> activate
+
+if_stmt:     "if" "(" expr ")" block else_part?
+else_part:   "else" (block | if_stmt)
+repeat_stmt: "repeat" expr "times" block
+for_stmt:    "for" ID "in" ref block
+args:        expr ("," expr)*
+
+// ---------------- referências ----------------
+// NOTA: 'on' é palavra reservada (A.7), mas o exemplo A.8 usa  x.on();
+// Por isso um membro após '.' pode ser ID ou ON. Ver relatório.
+ref: ID ("." member)*
+member: ID | ON
+
+// ---------------- expressões (recursão à esquerda) ----------------
+?expr: expr "or" and_expr          -> or_
+     | and_expr
+
+?and_expr: and_expr "and" not_expr -> and_
+         | not_expr
+
+?not_expr: "not" not_expr          -> not_
+         | rel_expr
+
+?rel_expr: add_expr "==" add_expr  -> eq
+         | add_expr "!=" add_expr  -> ne
+         | add_expr "<"  add_expr  -> lt
+         | add_expr "<=" add_expr  -> le
+         | add_expr ">"  add_expr  -> gt
+         | add_expr ">=" add_expr  -> ge
+         | add_expr
+
+?add_expr: add_expr "+" mul_expr   -> add
+         | add_expr "-" mul_expr   -> sub
+         | mul_expr
+
+?mul_expr: mul_expr "*" unary      -> mul
+         | mul_expr "/" unary      -> div
+         | mul_expr "%" unary      -> mod
+         | unary
+
+?unary: "-" unary                  -> neg
+      | primary
+
+?primary: INT        -> int_lit
+        | REAL       -> real_lit
+        | STRING     -> str_lit
+        | TIME       -> time_lit
+        | "true"     -> true_lit
+        | "false"    -> false_lit
+        | "now"      -> now
+        | ref
+        | "(" expr ")"
+
+// ---------------- léxico ----------------
+ON: "on"
+ID:      /[A-Za-z_][A-Za-z0-9_]*/
+TIME.3:  /[0-9]{2}:[0-9]{2}/
+REAL.2:  /[0-9]+\.[0-9]+/
+INT.1:   /[0-9]+/
+STRING:  /"[^"\n]*"/
+COMMENT.5: /\/\/[^\n]*/
+
+%import common.WS
+%ignore WS
+%ignore COMMENT
