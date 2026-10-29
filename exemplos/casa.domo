@@ -1,0 +1,50 @@
+home "Casa" {
+  const comfort : real = 21.0;
+
+  zone Living {
+    device lamp   : dimmer;
+    device heater : thermostat;
+    device motion : presence;
+    var visits : int = 0;
+
+    zone Corner {
+      device reading : dimmer;
+    }
+  }
+
+  group lights = [ Living.lamp, Living.Corner.reading ];
+
+  scene Night {
+    for l in lights {
+      l.off();
+    }
+    notify "Boa noite";
+  }
+
+  scene Alert {
+    repeat 3 times {
+      Living.lamp.on();
+      wait 1 sec;
+      Living.lamp.off();
+      wait 1 sec;
+    }
+  }
+
+  rule Arrive priority 2 on change Living.motion when Living.motion.detected == true {
+    Living.visits = Living.visits + 1;
+    if (now > 18:00) {
+      Living.lamp.on();
+      Living.lamp.brightness = 60;
+    } else {
+      Living.lamp.on();
+    }
+  }
+
+  rule Heat on every 10 min when Living.heater.temperature < comfort {
+    Living.heater.set(comfort);
+  }
+
+  rule Bedtime on at 22:30 {
+    activate Night;
+  }
+}
