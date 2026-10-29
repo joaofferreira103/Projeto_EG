@@ -3,10 +3,10 @@
 Analisador léxico e sintático da linguagem de domótica (Lark).
 
 Uso:
-    python analisador.py exemplos/casa.domo              # resumo
-    python analisador.py exemplos/casa.domo --tokens     # lista de tokens
-    python analisador.py exemplos/casa.domo --tree       # árvore sintática
-    python analisador.py exemplos/casa.domo --stats      # estatísticas
+    python analisador.py casa.domo              # resumo
+    python analisador.py casa.domo --tokens     # lista de tokens
+    python analisador.py casa.domo --tree       # árvore sintática
+    python analisador.py casa.domo --stats      # estatísticas
 
 Código de saída: 0 = OK, 1 = erro léxico, 2 = erro sintático.
 """

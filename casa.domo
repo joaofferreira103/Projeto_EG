@@ -4,7 +4,7 @@ home "Casa" {
   zone Living {
     device lamp   : dimmer;
     device heater : thermostat;
-    device motion : presence;
+    device motion : motion_sensor;
     var visits : int = 0;
 
     zone Corner {
@@ -32,7 +32,7 @@ home "Casa" {
 
   rule Arrive priority 2 on change Living.motion when Living.motion.detected == true {
     Living.visits = Living.visits + 1;
-    if (now > 18:00) {
+    if now > 18:00 {
       Living.lamp.on();
       Living.lamp.brightness = 60;
     } else {

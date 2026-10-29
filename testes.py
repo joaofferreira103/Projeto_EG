@@ -15,13 +15,14 @@ def stm(body: str) -> str:               # instrução dentro de uma cena
 
 CASOS = [
     # ---------------- válidos ----------------
-    ("exemplo A.8 completo",                 Path("exemplos/casa.domo").read_text(), OK),
+    ("exemplo A.8 completo",                 Path(__file__).with_name("casa.domo").read_text(), OK),
     ("programa vazio",                       prog(""), OK),
     ("zonas aninhadas",                      prog("zone A { zone B { zone C { device d : x; } } }"), OK),
-    ("else if encadeado",                    stm("if (a) { } else if (b) { } else { }"), OK),
+    ("if sem parênteses",                    stm("if a { }"), OK),
+    ("else if encadeado",                    stm("if a { } else if b { } else { }"), OK),
     ("menos unário e binário",               prog("const a : int = 1 - -2;"), OK),
     ("precedência not/and/or",               prog("const a : bool = not x and y or z;"), OK),
-    ("comparação com TIME e now",            stm("if (now >= 07:30) { }"), OK),
+    ("comparação com TIME e now",            stm("if now >= 07:30 { }"), OK),
     ("repeat com expressão",                 stm("repeat n + 1 times { }"), OK),
     ("comentário no fim da linha",           'home "t" {\n  const a : int = 1; // comentário\n}', OK),
     ("comando sem argumentos",               stm("Sala.lamp.on();"), OK),
@@ -47,8 +48,7 @@ CASOS = [
     ("SYN: falta ponto e vírgula",           prog("device a : b"), SYN),
     ("SYN: falta dois pontos no device",     prog("device a b;"), SYN),
     ("SYN: comparação encadeada",            prog("const a : bool = 1 < 2 < 3;"), SYN),
-    ("SYN: if sem chavetas",                 stm("if (a) wait 1 sec;"), SYN),
-    ("SYN: if sem parênteses",               stm("if a { }"), SYN),
+    ("SYN: if sem chavetas",                 stm("if a wait 1 sec;"), SYN),
     ("SYN: else solto",                      stm("else { }"), SYN),
     ("SYN: falta home { }",                  "device a : b;", SYN),
     ("SYN: chaveta por fechar",              prog("zone A { ").rsplit("}", 1)[0], SYN),

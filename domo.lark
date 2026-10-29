@@ -56,7 +56,7 @@ block: "{" stmt* "}"
      | "notify" STRING ";"         -> notify
      | "activate" ref ";"          -> activate
 
-if_stmt:     "if" "(" expr ")" block else_part?
+if_stmt:     "if" expr block else_part?
 else_part:   "else" (block | if_stmt)
 repeat_stmt: "repeat" expr "times" block
 for_stmt:    "for" ID "in" ref block
