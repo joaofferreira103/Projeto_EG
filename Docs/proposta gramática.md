@@ -238,7 +238,7 @@ Ou seja, a gramática de atributos.
 
 ---
 
-## Parte B: Notas para a apresentação (10 min)
+## Parte B: Notas sobre a Linguagem
 
 ### B.1 A mensagem central
 
@@ -260,15 +260,8 @@ Esta frase responde diretamente ao receio do professor. Convém dizê-la logo no
 
 Se o tempo apertar, cortem o slide 3 e juntem-no ao 4.
 
-### B.3 Argumentos para a questão "isto não é demasiado simples?"
 
-1. **Modelo orientado a eventos.** Há quatro tipos de gatilho (`change`, `signal`, `at`, `every`) com guarda opcional (`when`) e prioridade, e não é um simples `if`.
-2. **Âmbitos hierárquicos.** Zonas aninhadas, nomes qualificados (`Living.Corner.reading`), variáveis locais em blocos e a variável do `for` com âmbito próprio. Há disciplina de scoping real.
-3. **Dispositivos com tipo.** `device lamp : dimmer` obriga a um catálogo com propriedades e comandos, e isso gera verificações que a sintaxe não consegue fazer.
-4. **Tempo como conceito.** `wait`, `every`, `at` e `now`: aspetos temporais que uma linguagem genérica não tem.
-5. **Material para a Parte II.** Cenas que ativam cenas, regras que reagem a mudanças causadas por outras regras: ciclos e conflitos são análises naturais.
-
-### B.3.1 O que cobre dos requisitos mínimos
+### B.3 O que cobre dos requisitos mínimos
 
 | Requisito | Onde |
 |---|---|
@@ -319,19 +312,9 @@ Pontos prontos a usar, que mostram que a gramática foi pensada:
 - **Tipo do dispositivo como `ID`:** `device lamp : dimmer` aceita qualquer identificador na gramática. Isto mantém a gramática pequena e extensível, e a verificação passa para o catálogo na semântica.
 - **Legibilidade:** palavras-chave em inglês e estrutura próxima do domínio. Pontos fracos a admitir: `min`/`sec`/`hour` ocupam nomes de identificadores.
 
-### B.6 Perguntas que o professor pode fazer (e respostas)
 
-| Pergunta | Resposta sugerida |
-|---|---|
-| A gramática é ambígua? | Não nas expressões (níveis de precedência) nem no `if` (chavetas obrigatórias). `Ref` e `Stmt` precisam de lookahead num LL(1), mas não são ambíguas. |
-| Porque é que `Ref` é recursiva à esquerda? | Reflete o caminho qualificado `A.B.C` e a associatividade à esquerda; num LR é natural. Em LL passaria a `ID ('.' ID)*`. |
-| Porque é que o tipo do dispositivo é um `ID`? | Para manter a gramática pequena; o catálogo de tipos e as suas operações validam-se semanticamente. |
-| Onde está a semântica que a sintaxe não decide? | Tabela A.9: nomes, tipos, comandos válidos, `const`, `for` sobre grupos. |
-| Como lidam com *shadowing*? | Âmbito léxico: um nome interior oculta um exterior; duplicados no mesmo âmbito são erro. *(Confirmem esta decisão antes de apresentar.)* |
-| E ciclos entre cenas/regras? | Detetáveis com análise de grafo na Parte II; o atributo "o que esta cena/regra ativa ou escreve" prepara essa análise. |
-| Porque não há unidades nos tipos (`21 C`, `70 %`)? | Simplificação consciente: `int`/`real`. Podem referir como possível extensão (tipos com unidades), mas não é necessário. |
 
-### B.7 Decisões em aberto
+### B.6 Decisões em aberto
 
 Resolvam antes de apresentar, porque o professor vai perguntar:
 
