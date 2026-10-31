@@ -1,0 +1,7 @@
+// expect: condNotBool
+home "t" {
+  zone Z {
+    device lamp : dimmer;
+    scene S { if lamp.brightness { } }
+  }
+}

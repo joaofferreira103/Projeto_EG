@@ -1,0 +1,5 @@
+// expect: cyclicActivation
+home "t" {
+  scene a { activate b; }
+  scene b { activate a; }
+}

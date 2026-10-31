@@ -1,0 +1,5 @@
+// expect: assignToConst
+home "t" {
+  const night_start : time = 22:30;
+  scene S { night_start = 23:00; }
+}

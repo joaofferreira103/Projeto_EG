@@ -1,0 +1,5 @@
+// expect: noSuchMember
+home "t" {
+  zone Living { device shade : blind; }
+  scene S { Living.shade.open(); }
+}

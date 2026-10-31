@@ -1,0 +1,4 @@
+// expect: invalidTime
+home "t" {
+  rule r on at 25:99 { }
+}

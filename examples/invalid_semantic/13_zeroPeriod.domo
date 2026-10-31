@@ -1,0 +1,4 @@
+// expect: zeroPeriod
+home "t" {
+  rule r on every 0 min { }
+}

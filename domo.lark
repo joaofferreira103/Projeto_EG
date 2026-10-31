@@ -1,8 +1,3 @@
-// ============================================================
-//  Linguagem de domótica: gramática Lark (LALR(1), lexer "basic")
-//  Reflete a especificação A.2 a A.7 do relatório.
-// ============================================================
-
 start: program
 
 // ---------------- estrutura ----------------

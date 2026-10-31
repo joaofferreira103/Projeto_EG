@@ -1,0 +1,10 @@
+home "Estudio" {
+  zone Room {
+    device lamp : light;
+    device motion : motion_sensor;
+
+    rule light_on on signal motion.motion_detected {
+      lamp.turn_on();
+    }
+  }
+}

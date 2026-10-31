@@ -1,0 +1,7 @@
+// expect: notAProperty
+home "t" {
+  zone Z {
+    device motion : motion_sensor;
+    rule r on change motion.motion_detected { }
+  }
+}

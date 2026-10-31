@@ -1,0 +1,42 @@
+home "Casa Porto" {
+  const night_start : time = 22:30;
+  const comfort : real = 21.5;
+  var away : bool = false;
+
+  group all_lights = [Living.lamp, Kitchen.lamp];
+
+  scene goodnight {
+    for l in all_lights { l.turn_off(); }
+    Hall.door.lock();
+    notify "Boa noite!";
+  }
+
+  zone Living {
+    device lamp : dimmer;
+    device motion : motion_sensor;
+    device heater : thermostat;
+
+    rule evening_light priority 2
+      on signal motion.motion_detected
+      when now > night_start and not away {
+      lamp.turn_on();
+      lamp.brightness = 40;
+      wait 10 min;
+      if not motion.active { lamp.turn_off(); }
+    }
+
+    rule keep_warm
+      on change heater.current_temp
+      when heater.current_temp < comfort - 1.0 {
+      heater.target_temp = comfort;
+    }
+  }
+
+  zone Kitchen { device lamp : dimmer; }
+  zone Hall { device door : door_lock; }
+
+  rule bedtime on at 23:00 {
+    repeat 3 times { notify "Hora de dormir"; wait 1 min; }
+    activate goodnight;
+  }
+}

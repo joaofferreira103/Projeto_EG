@@ -1,0 +1,6 @@
+// expect: heterogeneousGroup
+home "t" {
+  zone Living { device lamp : dimmer; }
+  zone Hall { device door : door_lock; }
+  group g = [Living.lamp, Hall.door];
+}

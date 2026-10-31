@@ -15,7 +15,6 @@ def stm(body: str) -> str:               # instrução dentro de uma cena
 
 CASOS = [
     # ---------------- válidos ----------------
-    ("exemplo A.8 completo",                 Path(__file__).with_name("casa.domo").read_text(), OK),
     ("programa vazio",                       prog(""), OK),
     ("zonas aninhadas",                      prog("zone A { zone B { zone C { device d : x; } } }"), OK),
     ("if sem parênteses",                    stm("if a { }"), OK),
@@ -62,12 +61,23 @@ CASOS = [
     ("SYN: TIME mal formado (22:3)",         prog("rule R on at 22:3 { }"), SYN),
     ("SYN: palavra reservada como ID (min)", prog("var min : int = 0;"), SYN),
     ("SYN: palavra reservada como ID (in)",  prog("device in : lamp;"), SYN),
+    ("SYN: comentário de bloco não existe", prog("/* x */ const a : int = 1;"), SYN),
     ("SYN: palavra reservada depois do ponto (on)",  stm("Sala.lamp.on();"), SYN),
     ("SYN: palavra reservada depois do ponto (min)", stm("Sala.lamp.min = 1;"), SYN),
     ("SYN: tipo desconhecido em var",        prog("var a : float = 1.0;"), SYN),
     ("SYN: operador duplo",                  prog("const a : int = 1 + * 2;"), SYN),
     ("SYN: atribuição sem valor",            stm("a = ;"), SYN),
 ]
+
+EXEMPLOS = Path(__file__).with_name("examples")
+
+def casos_de_ficheiros():
+    """Programas completos guardados em examples/. Hoje só se testa a sintaxe;
+    na Fase 3, os de invalid_semantic passam a ser comparados com a linha '// expect: ...'."""
+    for f in sorted((EXEMPLOS / "valid").glob("*.domo")):
+        yield (f"valid/{f.name}", f.read_text(encoding="utf-8"), OK)
+    for f in sorted((EXEMPLOS / "invalid_semantic").glob("*.domo")):
+        yield (f"SEM: {f.stem}", f.read_text(encoding="utf-8"), OK)
 
 def classifica(parser, src):
     _, lex_err = lexical_analysis(parser, src)
@@ -104,10 +114,11 @@ if __name__ == "__main__":
     print("\n== Testes ==")
     p = build_parser("basic")
     falhas = 0
-    for nome, src, esperado in CASOS:
+    for nome, src, esperado in CASOS + list(casos_de_ficheiros()):
         obtido = classifica(p, src)
         ok = obtido == esperado
         falhas += not ok
         print(f"{'✓' if ok else '✗'}  {esperado:<3} {nome}" + ("" if ok else f"   (obtido: {obtido})"))
-    print(f"\n{len(CASOS) - falhas}/{len(CASOS)} testes passaram")
+    total = len(CASOS) + len(list(casos_de_ficheiros()))
+    print(f"\n{total - falhas}/{total} testes passaram")
     raise SystemExit(1 if falhas else 0)

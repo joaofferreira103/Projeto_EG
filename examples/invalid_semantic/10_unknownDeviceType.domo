@@ -1,0 +1,4 @@
+// expect: unknownDeviceType
+home "t" {
+  zone Z { device x : thermometer; }
+}

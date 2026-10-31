@@ -1,0 +1,5 @@
+// expect: noSuchMember
+home "t" {
+  zone Living { device heater : thermostat; }
+  scene S { Living.heater.turn_on(); }
+}

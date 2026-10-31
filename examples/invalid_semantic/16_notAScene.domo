@@ -1,0 +1,7 @@
+// expect: notAScene
+home "t" {
+  zone Z {
+    device lamp : dimmer;
+    rule r on at 08:00 { activate lamp; }
+  }
+}
