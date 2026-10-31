@@ -16,16 +16,16 @@ home "Casa" {
 
   scene Night {
     for l in lights {
-      l.off();
+      l.turn_off();
     }
     notify "Boa noite";
   }
 
   scene Alert {
     repeat 3 times {
-      Living.lamp.on();
+      Living.lamp.turn_on();
       wait 1 sec;
-      Living.lamp.off();
+      Living.lamp.turn_off();
       wait 1 sec;
     }
   }
@@ -33,10 +33,10 @@ home "Casa" {
   rule Arrive priority 2 on change Living.motion when Living.motion.detected == true {
     Living.visits = Living.visits + 1;
     if now > 18:00 {
-      Living.lamp.on();
+      Living.lamp.turn_on();
       Living.lamp.brightness = 60;
     } else {
-      Living.lamp.on();
+      Living.lamp.turn_on();
     }
   }
 
