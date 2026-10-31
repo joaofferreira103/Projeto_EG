@@ -29,7 +29,7 @@ type: "int"    -> t_int
     | "time"   -> t_time
 
 // ---------------- regras e eventos ----------------
-rule_decl: "rule" ID priority? ON event guard? block
+rule_decl: "rule" ID priority? "on" event guard? block
 priority:  "priority" INT
 guard:     "when" expr
 
@@ -63,10 +63,8 @@ for_stmt:    "for" ID "in" ref block
 args:        expr ("," expr)*
 
 // ---------------- referências ----------------
-// NOTA: 'on' é palavra reservada (A.7), mas o exemplo A.8 usa  x.on();
-// Por isso um membro após '.' pode ser ID ou ON. Ver relatório.
-ref: ID ("." member)*
-member: ID | ON
+// Uma palavra reservada nunca pode ser nome: depois de '.' só é aceite ID.
+ref: ID ("." ID)*
 
 // ---------------- expressões (recursão à esquerda) ----------------
 ?expr: expr "or" and_expr          -> or_
@@ -109,7 +107,6 @@ member: ID | ON
         | "(" expr ")"
 
 // ---------------- léxico ----------------
-ON: "on"
 ID:      /[A-Za-z_][A-Za-z0-9_]*/
 TIME.3:  /[0-9]{2}:[0-9]{2}/
 REAL.2:  /[0-9]+\.[0-9]+/
