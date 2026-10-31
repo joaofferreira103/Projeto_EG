@@ -1,0 +1,7 @@
+// expect: typeMismatch
+home "t" {
+  zone Living {
+    device lamp : dimmer;
+    scene S { lamp.fade_to("alto"); }
+  }
+}

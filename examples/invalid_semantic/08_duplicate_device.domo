@@ -1,0 +1,7 @@
+// expect: duplicate
+home "t" {
+  zone Z {
+    device lamp : dimmer;
+    device lamp : dimmer;
+  }
+}

@@ -1,0 +1,7 @@
+// expect: readOnly
+home "t" {
+  zone Living {
+    device motion : motion_sensor;
+    scene S { motion.active = true; }
+  }
+}

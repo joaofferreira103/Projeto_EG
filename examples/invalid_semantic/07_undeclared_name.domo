@@ -1,0 +1,4 @@
+// expect: undeclared
+home "t" {
+  scene S { sofa.turn_on(); }
+}

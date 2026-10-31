@@ -1,0 +1,7 @@
+// expect: readOnly
+home "t" {
+  zone Living {
+    device lamp : dimmer;
+    scene S { lamp.power = true; }
+  }
+}
