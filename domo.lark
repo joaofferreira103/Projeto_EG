@@ -1,7 +1,19 @@
+// ============================================================
+//  Linguagem de domótica: gramática Lark (LALR(1), lexer "basic")
+//  Escrita em BNF puro: sem '*', '?' nem '( | )'; as listas e os
+//  opcionais são regras recursivas ou com alternativa vazia.                      // VER PQ NÃO TER | E OS OUTROS 
+//  Convenções do Lark usadas:
+//    ?regra  -> o nó desaparece da árvore quando só tem um filho
+//    _regra  -> o nó desaparece sempre (os filhos sobem para o nó de cima)
+//  Por isso a árvore devolvida é simples, e a opção --derivacao do
+//  analisador mostra a árvore completa (sem '?' nem '_').
+// ============================================================
+
 start: program
 
 // ---------------- estrutura ----------------
-program: "home" STRING "{" decl* "}"
+program: "home" STRING "{" _decl_list "}"
+_decl_list: decl _decl_list |
 
 ?decl: zone_decl
      | device_decl
@@ -10,21 +22,24 @@ program: "home" STRING "{" decl* "}"
      | scene_decl
      | rule_decl
 
-zone_decl:   "zone" ID "{" decl* "}"
+zone_decl:   "zone" ID "{" _decl_list "}"
 device_decl: "device" ID ":" ID ";"
 var_decl:    "var"   ID ":" type "=" expr ";"   -> var_decl
            | "const" ID ":" type "=" expr ";"   -> const_decl
-group_decl:  "group" ID "=" "[" ref ("," ref)* "]" ";"
+group_decl:  "group" ID "=" "[" ref _ref_list "]" ";"
+_ref_list:   "," ref _ref_list |
 scene_decl:  "scene" ID block
 
-type: "int"    -> t_int
-    | "real"   -> t_real
-    | "bool"   -> t_bool
-    | "string" -> t_string
-    | "time"   -> t_time
+type: _KW_INT    -> t_int
+    | _KW_REAL   -> t_real
+    | _KW_BOOL   -> t_bool
+    | _KW_STRING -> t_string
+    | _KW_TIME   -> t_time
 
 // ---------------- regras e eventos ----------------
-rule_decl: "rule" ID priority? "on" event guard? block
+rule_decl: "rule" ID _opt_priority "on" event _opt_guard block
+_opt_priority: priority |
+_opt_guard:    guard |
 priority:  "priority" INT
 guard:     "when" expr
 
@@ -39,11 +54,12 @@ unit: "sec"  -> u_sec
     | "hour" -> u_hour
 
 // ---------------- instruções ----------------
-block: "{" stmt* "}"
+block: "{" _stmt_list "}"
+_stmt_list: stmt _stmt_list |
 
 ?stmt: var_decl
      | ref "=" expr ";"            -> assign
-     | ref "(" args? ")" ";"       -> command
+     | ref "(" _opt_args ")" ";"    -> command
      | if_stmt
      | repeat_stmt
      | for_stmt
@@ -51,15 +67,20 @@ block: "{" stmt* "}"
      | "notify" STRING ";"         -> notify
      | "activate" ref ";"          -> activate
 
-if_stmt:     "if" expr block else_part?
-else_part:   "else" (block | if_stmt)
+if_stmt:     "if" expr block _opt_else
+_opt_else:   else_part |
+else_part:   "else" _else_body
+_else_body:  block | if_stmt
 repeat_stmt: "repeat" expr "times" block
 for_stmt:    "for" ID "in" ref block
-args:        expr ("," expr)*
+args:        expr _args_tail
+_args_tail:  "," expr _args_tail |
+_opt_args:   args |
 
 // ---------------- referências ----------------
 // Uma palavra reservada nunca pode ser nome: depois de '.' só é aceite ID.
-ref: ID ("." ID)*
+ref: ID _ref_ids
+_ref_ids: "." ID _ref_ids |
 
 // ---------------- expressões (recursão à esquerda) ----------------
 ?expr: expr "or" and_expr          -> or_
@@ -71,12 +92,12 @@ ref: ID ("." ID)*
 ?not_expr: "not" not_expr          -> not_
          | rel_expr
 
-?rel_expr: add_expr "==" add_expr  -> eq
-         | add_expr "!=" add_expr  -> ne
+?rel_expr: add_expr _EQ add_expr  -> eq
+         | add_expr _NE add_expr  -> ne
          | add_expr "<"  add_expr  -> lt
-         | add_expr "<=" add_expr  -> le
+         | add_expr _LE add_expr  -> le
          | add_expr ">"  add_expr  -> gt
-         | add_expr ">=" add_expr  -> ge
+         | add_expr _GE add_expr  -> ge
          | add_expr
 
 ?add_expr: add_expr "+" mul_expr   -> add
@@ -102,6 +123,19 @@ ref: ID ("." ID)*
         | "(" expr ")"
 
 // ---------------- léxico ----------------
+// Terminais com nome explícito. O '_' inicial é uma convenção do Lark: o token existe
+// (aparece no analisador léxico) mas não entra na árvore. O operador já fica identificado
+// pelo alias da regra (ex.: '-> eq'), por isso a árvore mantém-se igual.
+_EQ: "=="
+_NE: "!="
+_LE: "<="
+_GE: ">="
+_KW_INT:    "int"
+_KW_REAL:   "real"
+_KW_BOOL:   "bool"
+_KW_STRING: "string"
+_KW_TIME:   "time"
+
 ID:      /[A-Za-z_][A-Za-z0-9_]*/
 TIME.3:  /[0-9]{2}:[0-9]{2}/
 REAL.2:  /[0-9]+\.[0-9]+/

@@ -3,14 +3,16 @@
 Analisador léxico e sintático da linguagem de domótica (Lark).
 
 Uso:
-    python analisador.py casa.domo              # resumo
-    python analisador.py casa.domo --tokens     # lista de tokens
-    python analisador.py casa.domo --tree       # árvore sintática
-    python analisador.py casa.domo --stats      # estatísticas
+    python analisador.py examples/valid/02_typical.domo               # resumo
+    python analisador.py examples/valid/02_typical.domo --tokens      # lista de tokens
+    python analisador.py examples/valid/02_typical.domo --tree        # árvore simplificada (a do Lark)
+    python analisador.py examples/valid/02_typical.domo --derivacao   # árvore de derivação completa
+    python analisador.py examples/valid/02_typical.domo --stats       # estatísticas
 
 Código de saída: 0 = OK, 1 = erro léxico, 2 = erro sintático.
 """
 import argparse
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -43,6 +45,17 @@ def terminal_names(parser: Lark) -> dict:
         else:
             names[t.name] = t.name
     return names
+
+
+def build_derivation_parser() -> Lark:
+    """Segundo analisador, construído a partir do MESMO domo.lark, mas sem as
+    simplificações da árvore: '?regra' e '_regra' passam a regras normais e todos
+    os tokens são mantidos. O resultado é a árvore de derivação (um nó por regra
+    usada). Os aliases (-> add, -> assign...) mantêm-se: identificam a produção."""
+    text = GRAMMAR.read_text(encoding="utf-8")
+    text = re.sub(r"^\?(\w+)", r"\1", text, flags=re.M)     # ?regra  ->  regra
+    text = re.sub(r"\b_([a-z]\w*)", r"\1", text)             # _regra  ->  regra (só regras, não terminais)
+    return Lark(text, parser="lalr", lexer="basic", start="start", keep_all_tokens=True)
 
 
 # ------------------------------------------------------------------
@@ -128,7 +141,8 @@ def print_stats(tokens, tree):
         print(f"\nProfundidade da árvore: {tree_depth(tree)}")
 
 
-def analyse(src: str, show_tokens=False, show_tree=False, show_stats=False, lexer="basic", out=print) -> int:
+def analyse(src: str, show_tokens=False, show_tree=False, show_stats=False, lexer="basic", out=print,
+            show_derivation=False) -> int:
     parser = build_parser(lexer)
     names = terminal_names(parser)
 
@@ -151,6 +165,8 @@ def analyse(src: str, show_tokens=False, show_tree=False, show_stats=False, lexe
     out("[sintática] OK, árvore construída")
     if show_tree:
         print(tree.pretty())
+    if show_derivation:
+        print(build_derivation_parser().parse(src).pretty())
     if show_stats:
         print_stats(tokens, tree)
     return 0
@@ -161,11 +177,12 @@ def main():
     ap.add_argument("ficheiro")
     ap.add_argument("--tokens", action="store_true")
     ap.add_argument("--tree", action="store_true")
+    ap.add_argument("--derivacao", action="store_true", help="árvore de derivação completa")
     ap.add_argument("--stats", action="store_true")
     ap.add_argument("--lexer", choices=["basic", "contextual"], default="basic")
     a = ap.parse_args()
     src = Path(a.ficheiro).read_text(encoding="utf-8")
-    sys.exit(analyse(src, a.tokens, a.tree, a.stats, a.lexer))
+    sys.exit(analyse(src, a.tokens, a.tree, a.stats, a.lexer, show_derivation=a.derivacao))
 
 
 if __name__ == "__main__":
