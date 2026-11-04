@@ -9,7 +9,7 @@ Uso:
     python analisador.py examples/valid/02_typical.domo --derivacao   # árvore de derivação completa
     python analisador.py examples/valid/02_typical.domo --stats       # estatísticas
 
-Código de saída: 0 = OK, 1 = erro léxico, 2 = erro sintático.
+Código de saída: 0 = OK, 1 = erro léxico, 2 = erro sintático, 3 = erro semântico. 
 """
 import argparse
 import re
@@ -20,6 +20,8 @@ from pathlib import Path
 from lark import Lark
 from lark.exceptions import UnexpectedCharacters, UnexpectedEOF, UnexpectedToken
 from lark.lexer import PatternStr
+
+from semantic import SemanticAnalyzer
 
 GRAMMAR = Path(__file__).with_name("domo.lark")
 
@@ -142,11 +144,11 @@ def print_stats(tokens, tree):
 
 
 def analyse(src: str, show_tokens=False, show_tree=False, show_stats=False, lexer="basic", out=print,
-            show_derivation=False) -> int:
+            show_derivation=False, skip_semantic=False) -> int:
     parser = build_parser(lexer)
     names = terminal_names(parser)
 
-    # 1) léxica
+    # 1) Análise Léxica
     tokens, lex_errors = lexical_analysis(parser, src)
     out(f"[léxica]    {len(tokens)} tokens, {len(lex_errors)} erro(s) léxico(s)")
     for e in lex_errors:
@@ -156,7 +158,7 @@ def analyse(src: str, show_tokens=False, show_tree=False, show_stats=False, lexe
     if lex_errors:
         return 1
 
-    # 2) sintática
+    # 2) Análise Sintática
     tree, err = syntactic_analysis(parser, src)
     if err is not None:
         out("[sintática] ERRO")
@@ -169,6 +171,18 @@ def analyse(src: str, show_tokens=False, show_tree=False, show_stats=False, lexe
         print(build_derivation_parser().parse(src).pretty())
     if show_stats:
         print_stats(tokens, tree)
+
+    # 3) Análise Semântica
+    if not skip_semantic:
+        sem = SemanticAnalyzer()
+        sem_errors = sem.analyze(tree)
+        if sem_errors:
+            out(f"[semântica] ERRO ({len(sem_errors)} erro(s) encontrado(s))")
+            for se in sem_errors:
+                out(f"  {se}")
+            return 3
+        out("[semântica] OK, verificação concluída sem erros")
+
     return 0
 
 
@@ -180,9 +194,10 @@ def main():
     ap.add_argument("--derivacao", action="store_true", help="árvore de derivação completa")
     ap.add_argument("--stats", action="store_true")
     ap.add_argument("--lexer", choices=["basic", "contextual"], default="basic")
+    ap.add_argument("--skip-sem", action="store_true", help="ignora a verificação semântica")
     a = ap.parse_args()
     src = Path(a.ficheiro).read_text(encoding="utf-8")
-    sys.exit(analyse(src, a.tokens, a.tree, a.stats, a.lexer, show_derivation=a.derivacao))
+    sys.exit(analyse(src, a.tokens, a.tree, a.stats, a.lexer, show_derivation=a.derivacao, skip_semantic=a.skip_sem))
 
 
 if __name__ == "__main__":

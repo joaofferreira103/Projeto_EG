@@ -1,42 +1,49 @@
 #!/usr/bin/env python3
-"""Bateria de testes léxicos e sintáticos. Uso: python testes.py"""
+"""Bateria de testes léxicos, sintáticos e semânticos. Uso: python testes.py"""
 import logging
 from pathlib import Path
 
 from analisador import build_parser, lexical_analysis, syntactic_analysis
+from semantic import SemanticAnalyzer
 
-OK, LEX, SYN = "OK", "LEX", "SYN"       # resultado esperado
+OK, LEX, SYN, SEM = "OK", "LEX", "SYN", "SEM"
 
 def prog(body: str) -> str:
     return f'home "t" {{ {body} }}'
 
-def stm(body: str) -> str:               # instrução dentro de uma cena
+def stm(body: str) -> str:
     return prog(f"scene S {{ {body} }}")
 
 CASOS = [
-    # ---------------- válidos ----------------
+    # ---------------- válidos (Léxica + Sintática + Semântica) ----------------
     ("programa vazio",                       prog(""), OK),
-    ("zonas aninhadas",                      prog("zone A { zone B { zone C { device d : x; } } }"), OK),
-    ("if sem parênteses",                    stm("if a { }"), OK),
-    ("else if encadeado",                    stm("if a { } else if b { } else { }"), OK),
+    ("zonas aninhadas",                      prog("zone A { zone B { zone C { device d : light; } } }"), OK),
+    ("if sem parênteses",                    prog("var a : bool = true; scene S { if a { } }"), OK),
+    ("else if encadeado",                    prog("var a : bool = true; var b : bool = false; scene S { if a { } else if b { } else { } }"), OK),
     ("menos unário e binário",               prog("const a : int = 1 - -2;"), OK),
-    ("precedência not/and/or",               prog("const a : bool = not x and y or z;"), OK),
+    ("precedência not/and/or",               prog("const x : bool = true; const y : bool = false; const z : bool = true; const a : bool = not x and y or z;"), OK),
     ("comparação com TIME e now",            stm("if now >= 07:30 { }"), OK),
-    ("repeat com expressão",                 stm("repeat n + 1 times { }"), OK),
+    ("repeat com expressão",                 prog("const n : int = 2; scene S { repeat n + 1 times { } }"), OK),
     ("comentário no fim da linha",           'home "t" {\n  const a : int = 1; // comentário\n}', OK),
-    ("comando sem argumentos",               stm("Sala.lamp.turn_on();"), OK),
-    ("comando com argumentos",               stm("Sala.lamp.set(50, 3 + 4);"), OK),
+    ("comando sem argumentos",               prog("device lamp : light; scene S { lamp.turn_on(); }"), OK),
+    ("comando com argumentos",               prog("device lamp : dimmer; scene S { lamp.fade_to(50); }"), OK),
     ("regra mínima",                         prog("rule R on at 22:30 { }"), OK),
-    ("regra com todas as partes",            prog("rule R priority 3 on every 5 min when a { }"), OK),
+    ("regra com todas as partes",            prog("var a : bool = true; rule R priority 3 on every 5 min when a { }"), OK),
     ("unidade como parte de nome (minimo)",  prog("var minimo : int = 0;"), OK),
     ("prefixo de keyword como ID (iffy)",    prog("var iffy : int = 0;"), OK),
-    # válidos sintaticamente, inválidos semanticamente (motivam a gramática de atributos)
-    ("SEM: dispositivo inexistente",         stm("Living.sofa.turn_on();"), OK),
-    ("SEM: atribuir a const",                prog("const c : real = 1.0; scene S { c = 22.0; }"), OK),
-    ("SEM: for sobre zona",                  stm("for x in Living { }"), OK),
-    ("SEM: repeat com string",               stm('repeat "tres" times { }'), OK),
-    ("SEM: activate de regra",               stm("activate Heat;"), OK),
-    ("SEM: tipo errado na atribuição",       stm('Living.lamp.brightness = "alto";'), OK),
+
+    # ---------------- erros semânticos ----------------
+    ("SEM: dispositivo inexistente",         stm("Living.sofa.turn_on();"), SEM),
+    ("SEM: atribuir a const",                prog("const c : real = 1.0; scene S { c = 22.0; }"), SEM),
+    ("SEM: repeat com string",               stm('repeat "tres" times { }'), SEM),
+    ("SEM: activate de regra",               prog("rule Heat on at 10:00 {} scene S { activate Heat; }"), SEM),
+    ("SEM: tipo errado na atribuição",       prog("device lamp : dimmer; scene S { lamp.brightness = \"alto\"; }"), SEM),
+    ("SEM: escrita em propriedade read-only",prog("device lamp : light; scene S { lamp.power = true; }"), SEM),
+    ("SEM: identificador duplicado",         prog("device lamp : light; device lamp : dimmer;"), SEM),
+    ("SEM: tipo de dispositivo desconhecido",prog("device x : termometro;"), SEM),
+    ("SEM: hora com valor impossivel",       prog("rule R on at 25:99 { }"), SEM),
+    ("SEM: every com valor 0",               prog("rule R on every 0 min { }"), SEM),
+    ("SEM: condicao de if nao booleana",     prog("device lamp : dimmer; scene S { if lamp.brightness { } }"), SEM),
 
     # ---------------- erros léxicos ----------------
     ("LEX: carácter ilegal @",               prog("const a : int = 1 @ 2;"), LEX),
@@ -72,22 +79,24 @@ CASOS = [
 EXEMPLOS = Path(__file__).with_name("examples")
 
 def casos_de_ficheiros():
-    """Programas completos guardados em examples/. Hoje só se testa a sintaxe;
-    na Fase 3, os de invalid_semantic passam a ser comparados com a linha '// expect: ...'."""
     for f in sorted((EXEMPLOS / "valid").glob("*.domo")):
         yield (f"valid/{f.name}", f.read_text(encoding="utf-8"), OK)
     for f in sorted((EXEMPLOS / "invalid_semantic").glob("*.domo")):
-        yield (f"SEM: {f.stem}", f.read_text(encoding="utf-8"), OK)
+        yield (f"SEM: {f.stem}", f.read_text(encoding="utf-8"), SEM)
 
 def classifica(parser, src):
     _, lex_err = lexical_analysis(parser, src)
     if lex_err:
         return LEX
-    _, err = syntactic_analysis(parser, src)
-    return SYN if err else OK
+    tree, syn_err = syntactic_analysis(parser, src)
+    if syn_err:
+        return SYN
+    sem_err = SemanticAnalyzer().analyze(tree)
+    if sem_err:
+        return SEM
+    return OK
 
 def conflitos_lalr():
-    """Constrói a tabela LALR com debug ligado e recolhe os avisos de conflitos."""
     from lark import logger
     avisos = []
     class H(logging.Handler):
@@ -97,7 +106,7 @@ def conflitos_lalr():
     try:
         build_parser("basic", debug=True)
         return [a for a in avisos if "onflict" in a], None
-    except Exception as e:                      # reduce/reduce levanta exceção
+    except Exception as e:
         return [], str(e)
     finally:
         logger.removeHandler(h); logger.setLevel(antigo)
@@ -114,11 +123,12 @@ if __name__ == "__main__":
     print("\n== Testes ==")
     p = build_parser("basic")
     falhas = 0
-    for nome, src, esperado in CASOS + list(casos_de_ficheiros()):
+    todos = CASOS + list(casos_de_ficheiros())
+    for nome, src, esperado in todos:
         obtido = classifica(p, src)
         ok = obtido == esperado
         falhas += not ok
         print(f"{'✓' if ok else '✗'}  {esperado:<3} {nome}" + ("" if ok else f"   (obtido: {obtido})"))
-    total = len(CASOS) + len(list(casos_de_ficheiros()))
+    total = len(todos)
     print(f"\n{total - falhas}/{total} testes passaram")
     raise SystemExit(1 if falhas else 0)
