@@ -1,17 +1,5 @@
-// ============================================================
-//  Linguagem de domótica: gramática Lark (LALR(1), lexer "basic")
-//  Escrita em BNF puro: sem '*', '?' nem '( | )'; as listas e os
-//  opcionais são regras recursivas ou com alternativa vazia.                      // VER PQ NÃO TER | E OS OUTROS 
-//  Convenções do Lark usadas:
-//    ?regra  -> o nó desaparece da árvore quando só tem um filho
-//    _regra  -> o nó desaparece sempre (os filhos sobem para o nó de cima)
-//  Por isso a árvore devolvida é simples, e a opção --derivacao do
-//  analisador mostra a árvore completa (sem '?' nem '_').
-// ============================================================
-
 start: program
 
-// ---------------- estrutura ----------------
 program: "home" STRING "{" _decl_list "}"
 _decl_list: decl _decl_list |
 
@@ -36,7 +24,6 @@ type: _KW_INT    -> t_int
     | _KW_STRING -> t_string
     | _KW_TIME   -> t_time
 
-// ---------------- regras e eventos ----------------
 rule_decl: "rule" ID _opt_priority "on" event _opt_guard block
 _opt_priority: priority |
 _opt_guard:    guard |
@@ -53,7 +40,6 @@ unit: "sec"  -> u_sec
     | "min"  -> u_min
     | "hour" -> u_hour
 
-// ---------------- instruções ----------------
 block: "{" _stmt_list "}"
 _stmt_list: stmt _stmt_list |
 
@@ -77,12 +63,9 @@ args:        expr _args_tail
 _args_tail:  "," expr _args_tail |
 _opt_args:   args |
 
-// ---------------- referências ----------------
-// Uma palavra reservada nunca pode ser nome: depois de '.' só é aceite ID.
 ref: ID _ref_ids
 _ref_ids: "." ID _ref_ids |
 
-// ---------------- expressões (recursão à esquerda) ----------------
 ?expr: expr "or" and_expr          -> or_
      | and_expr
 
@@ -122,10 +105,6 @@ _ref_ids: "." ID _ref_ids |
         | ref
         | "(" expr ")"
 
-// ---------------- léxico ----------------
-// Terminais com nome explícito. O '_' inicial é uma convenção do Lark: o token existe
-// (aparece no analisador léxico) mas não entra na árvore. O operador já fica identificado
-// pelo alias da regra (ex.: '-> eq'), por isso a árvore mantém-se igual.
 _EQ: "=="
 _NE: "!="
 _LE: "<="

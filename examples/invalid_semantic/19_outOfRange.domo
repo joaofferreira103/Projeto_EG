@@ -1,0 +1,7 @@
+// expect: outOfRange
+home "t" {
+  zone Living {
+    device lamp : dimmer;
+    scene S { lamp.brightness = 150; }
+  }
+}

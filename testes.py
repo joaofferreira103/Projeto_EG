@@ -15,7 +15,6 @@ def stm(body: str) -> str:
     return prog(f"scene S {{ {body} }}")
 
 CASOS = [
-    # ---------------- válidos (Léxica + Sintática + Semântica) ----------------
     ("programa vazio",                       prog(""), OK),
     ("zonas aninhadas",                      prog("zone A { zone B { zone C { device d : light; } } }"), OK),
     ("if sem parênteses",                    prog("var a : bool = true; scene S { if a { } }"), OK),
@@ -29,10 +28,11 @@ CASOS = [
     ("comando com argumentos",               prog("device lamp : dimmer; scene S { lamp.fade_to(50); }"), OK),
     ("regra mínima",                         prog("rule R on at 22:30 { }"), OK),
     ("regra com todas as partes",            prog("var a : bool = true; rule R priority 3 on every 5 min when a { }"), OK),
+    ("operadores * / != <=",                 prog("const a : real = 2 * 3 / 1; const b : bool = 1 != 2; const c : bool = 1 <= 2;"), OK),
+    ("tipo string e unidades sec/hour",      prog('const s : string = "x"; rule R on every 30 sec { wait 1 hour; }'), OK),
     ("unidade como parte de nome (minimo)",  prog("var minimo : int = 0;"), OK),
     ("prefixo de keyword como ID (iffy)",    prog("var iffy : int = 0;"), OK),
 
-    # ---------------- erros semânticos ----------------
     ("SEM: dispositivo inexistente",         stm("Living.sofa.turn_on();"), SEM),
     ("SEM: atribuir a const",                prog("const c : real = 1.0; scene S { c = 22.0; }"), SEM),
     ("SEM: repeat com string",               stm('repeat "tres" times { }'), SEM),
@@ -45,12 +45,10 @@ CASOS = [
     ("SEM: every com valor 0",               prog("rule R on every 0 min { }"), SEM),
     ("SEM: condicao de if nao booleana",     prog("device lamp : dimmer; scene S { if lamp.brightness { } }"), SEM),
 
-    # ---------------- erros léxicos ----------------
     ("LEX: carácter ilegal @",               prog("const a : int = 1 @ 2;"), LEX),
     ("LEX: string por fechar",               prog('scene S { notify "olá; }'), LEX),
     ("LEX: carácter ilegal #",               prog("# isto não é comentário"), LEX),
 
-    # ---------------- erros sintáticos ----------------
     ("SYN: falta ponto e vírgula",           prog("device a : b"), SYN),
     ("SYN: falta dois pontos no device",     prog("device a b;"), SYN),
     ("SYN: comparação encadeada",            prog("const a : bool = 1 < 2 < 3;"), SYN),
@@ -76,13 +74,74 @@ CASOS = [
     ("SYN: atribuição sem valor",            stm("a = ;"), SYN),
 ]
 
+CASOS_CODIGOS = [
+    ("for: comando inexistente",    prog("zone Z { device a : light; } group g = [Z.a]; scene S { for l in g { l.nope(); } }"), ["noSuchMember"]),
+    ("for: tipo errado",            prog('zone Z { device a : dimmer; } group g = [Z.a]; scene S { for l in g { l.brightness = "x"; } }'), ["typeMismatch"]),
+    ("for: propriedade só leitura", prog("zone Z { device a : dimmer; } group g = [Z.a]; scene S { for l in g { l.power = true; } }"), ["readOnly"]),
+    ("for: cena antes do grupo",    prog("scene S { for l in g { l.turn_on(); } } group g = [Z.a]; zone Z { device a : light; }"), []),
+    ("activate não declarado",      stm("activate nope;"), ["undeclared"]),
+    ("activate qualificado",        prog("zone Z { scene T { } } scene S { activate Z.T; }"), []),
+    ("cena ativa-se a si própria",  prog("scene a { activate a; }"), ["cyclicActivation"]),
+    ("cenas homónimas sem ciclo",   prog("zone A { scene s { activate t; } scene t { } } zone B { scene t { activate s; } scene s { } }"), []),
+    ("chamar propriedade",          prog("device l : dimmer; scene S { l.brightness(); }"), ["noSuchMember"]),
+    ("chamar dispositivo",          prog("device l : dimmer; scene S { l(); }"), ["noSuchMember"]),
+    ("atribuir a dispositivo",      prog("device a : light; device b : light; scene S { a = b; }"), ["notAssignable"]),
+    ("atribuir a cena",             prog("scene T { } scene S { T = T; }"), ["notAssignable"]),
+    ("comparar dispositivos",       prog("device a : light; device b : light; scene S { if a == b { } }"), ["typeMismatch"]),
+    ("init a partir de var",        prog("var a : int = 0; var b : int = a;"), ["notConstant"]),
+    ("init com now",                prog("const a : time = now;"), ["notConstant"]),
+    ("const circular",              prog("const a : int = b; const b : int = a;"), ["cyclicInit"]),
+    ("const usa const posterior",   prog("const a : int = b + 1; const b : int = 2;"), []),
+    ("const local usa estado",      prog("device a : dimmer; scene S { const k : int = a.brightness; }"), []),
+    ("zona chamada block",          prog("zone block { var x : int = 0; }"), []),
+    ("shadowing entre âmbitos",     prog("var x : int = 0; zone Z { var x : real = 1.0; scene S { var x : bool = true; if x { } } }"), []),
+    ("local usada antes de declarada", stm("x = 1; var x : int = 0;"), ["undeclared"]),
+    ("sem erro em cascata",         stm("if z > 1 { }"), ["undeclared"]),
+    ("init não declarado uma vez",  prog("var a : int = b;"), ["undeclared"]),
+    ("comando com argumentos a mais", prog("device l : dimmer; scene S { l.fade_to(1, 2); }"), ["typeMismatch"]),
+    ("brightness acima de 100",     prog("device l : dimmer; scene S { l.brightness = 150; }"), ["outOfRange"]),
+    ("brightness negativo",         prog("device l : dimmer; scene S { l.brightness = -1; }"), ["outOfRange"]),
+    ("brightness nos limites",      prog("device l : dimmer; scene S { l.brightness = 0; l.brightness = 100; }"), []),
+    ("fade_to acima de 100",        prog("device l : dimmer; scene S { l.fade_to(150); }"), ["outOfRange"]),
+    ("position acima de 100",       prog("device b : blind; scene S { b.position = 101; }"), ["outOfRange"]),
+    ("valor vindo de constante",    prog("const m : int = 50; device l : dimmer; scene S { l.brightness = m * 3; }"), ["outOfRange"]),
+    ("constante local",             prog("device l : dimmer; scene S { const m : int = 150; l.brightness = m; }"), ["outOfRange"]),
+    ("constante declarada depois",  prog("scene S { l.brightness = m; } device l : dimmer; const m : int = 150;"), ["outOfRange"]),
+    ("intervalo no for",            prog("zone Z { device a : dimmer; } group g = [Z.a]; scene S { for l in g { l.brightness = 150; } }"), ["outOfRange"]),
+    ("dispositivo qualificado",     prog("zone Z { device a : dimmer; } scene S { Z.a.brightness = 150; }"), ["outOfRange"]),
+    ("sombra de constante local",   prog("const m : int = 150; device l : dimmer; scene S { const m : int = 50; l.brightness = m; }"), []),
+    ("variável não é verificada",   prog("var n : int = 150; device l : dimmer; scene S { l.brightness = n; }"), []),
+    ("target_temp sem intervalo",   prog("device t : thermostat; scene S { t.target_temp = 150.0; }"), []),
+    ("divisão por zero",            prog("const a : int = 1 / 0;"), ["divisionByZero"]),
+    ("divisão real por zero",       prog("const a : real = 1.0 / 0.0;"), ["divisionByZero"]),
+    ("módulo por zero",             prog("const a : int = 1 % 0;"), ["divisionByZero"]),
+    ("divisor calculado",           prog("const a : int = 1 / (2 - 2);"), ["divisionByZero"]),
+    ("divisor constante",           prog("const z : int = 0; const a : int = 1 / z;"), ["divisionByZero"]),
+    ("dividendo variável",          prog("var n : int = 1; scene S { n = n / 0; }"), ["divisionByZero"]),
+    ("divisor variável",            prog("var n : int = 0; scene S { n = 1 / n; }"), []),
+    ("divisão normal",              prog("const a : int = 7 / 2; const b : int = 7 % 2; const c : real = 1 / 0.5;"), []),
+    ("sem erro em cascata",         prog("const a : int = 1 / 0; const b : int = a + 1; device l : dimmer; scene S { l.brightness = a; }"), ["divisionByZero"]),
+    ("ciclo não bloqueia o cálculo", prog("const a : int = 1 / a;"), ["cyclicInit"]),
+    ("vários erros",                prog("device x : nope; scene S { y = 1; }"), ["unknownDeviceType", "undeclared"]),
+]
+
 EXEMPLOS = Path(__file__).with_name("examples")
 
 def casos_de_ficheiros():
     for f in sorted((EXEMPLOS / "valid").glob("*.domo")):
         yield (f"valid/{f.name}", f.read_text(encoding="utf-8"), OK)
+
+def casos_de_ficheiros_codigos():
+    """Os ficheiros inválidos têm de falhar com o código indicado em '// expect:'."""
     for f in sorted((EXEMPLOS / "invalid_semantic").glob("*.domo")):
-        yield (f"SEM: {f.stem}", f.read_text(encoding="utf-8"), SEM)
+        src = f.read_text(encoding="utf-8")
+        yield (f"invalid_semantic/{f.name}", src, [src.split("expect:")[1].split()[0]])
+
+def codigos(parser, src):
+    tree, _ = syntactic_analysis(parser, src)
+    if tree is None:
+        return ["<erro sintático>"]
+    return [e.code for e in SemanticAnalyzer().analyze(tree)]
 
 def classifica(parser, src):
     _, lex_err = lexical_analysis(parser, src)
@@ -104,7 +163,7 @@ def conflitos_lalr():
     h, antigo = H(), logger.level
     logger.addHandler(h); logger.setLevel(logging.DEBUG)
     try:
-        build_parser("basic", debug=True)
+        build_parser(debug=True)
         return [a for a in avisos if "onflict" in a], None
     except Exception as e:
         return [], str(e)
@@ -121,7 +180,7 @@ if __name__ == "__main__":
         for c in conf: print("  ", c)
 
     print("\n== Testes ==")
-    p = build_parser("basic")
+    p = build_parser()
     falhas = 0
     todos = CASOS + list(casos_de_ficheiros())
     for nome, src, esperado in todos:
@@ -129,6 +188,19 @@ if __name__ == "__main__":
         ok = obtido == esperado
         falhas += not ok
         print(f"{'✓' if ok else '✗'}  {esperado:<3} {nome}" + ("" if ok else f"   (obtido: {obtido})"))
-    total = len(todos)
+    print("\n== Códigos de erro semântico ==")
+    com_codigo = CASOS_CODIGOS + list(casos_de_ficheiros_codigos())
+    for nome, src, esperado in com_codigo:
+        obtido = codigos(p, src)
+        ok = obtido == esperado
+        falhas += not ok
+        print(f"{'✓' if ok else '✗'}  {nome}: {esperado or 'aceite'}" + ("" if ok else f"   (obtido: {obtido})"))
+    arvore = syntactic_analysis(p, stm("x = 1;"))[0]
+    posicao_ok = all(e.line > 0 for e in SemanticAnalyzer().analyze(arvore))
+    arvore = syntactic_analysis(p, prog("device a : dimmer;\nscene S { a.brightness = true; }"))[0]
+    posicao_ok = posicao_ok and all(e.line == 2 for e in SemanticAnalyzer().analyze(arvore))
+    falhas += not posicao_ok
+    print(f"{'✓' if posicao_ok else '✗'}  erros indicam a linha correta")
+    total = len(todos) + len(com_codigo) + 1
     print(f"\n{total - falhas}/{total} testes passaram")
     raise SystemExit(1 if falhas else 0)

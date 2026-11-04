@@ -17,7 +17,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from lark import Lark
+from lark import Lark, Tree
 from lark.exceptions import UnexpectedCharacters, UnexpectedEOF, UnexpectedToken
 from lark.lexer import PatternStr
 
@@ -26,14 +26,11 @@ from semantic import SemanticAnalyzer
 GRAMMAR = Path(__file__).with_name("domo.lark")
 
 
-# ------------------------------------------------------------------
-#  Construção do parser
-# ------------------------------------------------------------------
-def build_parser(lexer: str = "basic", debug: bool = False) -> Lark:
+def build_parser(debug: bool = False) -> Lark:
     """LALR(1) com lexer 'basic': palavras reservadas são sempre reservadas,
     tal como a tabela A.7 do relatório."""
     return Lark.open(
-        str(GRAMMAR), parser="lalr", lexer=lexer, start="start",
+        str(GRAMMAR), parser="lalr", lexer="basic", start="start",
         propagate_positions=True, debug=debug,
     )
 
@@ -55,19 +52,16 @@ def build_derivation_parser() -> Lark:
     os tokens são mantidos. O resultado é a árvore de derivação (um nó por regra
     usada). Os aliases (-> add, -> assign...) mantêm-se: identificam a produção."""
     text = GRAMMAR.read_text(encoding="utf-8")
-    text = re.sub(r"^\?(\w+)", r"\1", text, flags=re.M)     # ?regra  ->  regra
-    text = re.sub(r"\b_([a-z]\w*)", r"\1", text)             # _regra  ->  regra (só regras, não terminais)
+    text = re.sub(r"^\?(\w+)", r"\1", text, flags=re.M)
+    text = re.sub(r"\b_([a-z]\w*)", r"\1", text)
     return Lark(text, parser="lalr", lexer="basic", start="start", keep_all_tokens=True)
 
 
-# ------------------------------------------------------------------
-#  Análise léxica
-# ------------------------------------------------------------------
 def lexical_analysis(parser: Lark, src: str):
     """Devolve (tokens, erros). Recupera de erros substituindo o carácter
     ilegal por espaço, para listar todos os erros léxicos de uma vez."""
     errors, text = [], src
-    for _ in range(200):                       # limite de segurança
+    for _ in range(200):
         try:
             tokens = list(parser.lex(text))
             return tokens, errors
@@ -78,9 +72,6 @@ def lexical_analysis(parser: Lark, src: str):
     return [], errors
 
 
-# ------------------------------------------------------------------
-#  Análise sintática
-# ------------------------------------------------------------------
 def syntactic_analysis(parser: Lark, src: str):
     """Devolve (árvore, None) ou (None, erro)."""
     try:
@@ -97,7 +88,7 @@ def describe_error(e, src: str, names: dict) -> str:
     elif isinstance(e, UnexpectedToken):
         line, col = e.line, e.column
         found = "fim de ficheiro" if e.token.type == "$END" else f"'{e.token.value}' ({e.token.type})"
-    else:                                      # UnexpectedCharacters
+    else:
         line, col = e.line, e.column
         found = f"carácter {src[e.pos_in_stream]!r}"
     expected = sorted(names.get(t, t) for t in (getattr(e, "expected", None) or getattr(e, "accepts", None) or []))
@@ -111,9 +102,6 @@ def describe_error(e, src: str, names: dict) -> str:
     return "\n".join(msg)
 
 
-# ------------------------------------------------------------------
-#  Relatórios
-# ------------------------------------------------------------------
 def print_tokens(tokens):
     print(f"{'pos':>8}  {'tipo':<14} valor")
     print("-" * 44)
@@ -122,7 +110,6 @@ def print_tokens(tokens):
 
 
 def tree_depth(tree) -> int:
-    from lark import Tree
     if not isinstance(tree, Tree):
         return 0
     return 1 + max((tree_depth(c) for c in tree.children), default=0)
@@ -143,12 +130,11 @@ def print_stats(tokens, tree):
         print(f"\nProfundidade da árvore: {tree_depth(tree)}")
 
 
-def analyse(src: str, show_tokens=False, show_tree=False, show_stats=False, lexer="basic", out=print,
+def analyse(src: str, show_tokens=False, show_tree=False, show_stats=False, out=print,
             show_derivation=False, skip_semantic=False) -> int:
-    parser = build_parser(lexer)
+    parser = build_parser()
     names = terminal_names(parser)
 
-    # 1) Análise Léxica
     tokens, lex_errors = lexical_analysis(parser, src)
     out(f"[léxica]    {len(tokens)} tokens, {len(lex_errors)} erro(s) léxico(s)")
     for e in lex_errors:
@@ -158,7 +144,6 @@ def analyse(src: str, show_tokens=False, show_tree=False, show_stats=False, lexe
     if lex_errors:
         return 1
 
-    # 2) Análise Sintática
     tree, err = syntactic_analysis(parser, src)
     if err is not None:
         out("[sintática] ERRO")
@@ -172,7 +157,6 @@ def analyse(src: str, show_tokens=False, show_tree=False, show_stats=False, lexe
     if show_stats:
         print_stats(tokens, tree)
 
-    # 3) Análise Semântica
     if not skip_semantic:
         sem = SemanticAnalyzer()
         sem_errors = sem.analyze(tree)
@@ -193,11 +177,10 @@ def main():
     ap.add_argument("--tree", action="store_true")
     ap.add_argument("--derivacao", action="store_true", help="árvore de derivação completa")
     ap.add_argument("--stats", action="store_true")
-    ap.add_argument("--lexer", choices=["basic", "contextual"], default="basic")
     ap.add_argument("--skip-sem", action="store_true", help="ignora a verificação semântica")
     a = ap.parse_args()
     src = Path(a.ficheiro).read_text(encoding="utf-8")
-    sys.exit(analyse(src, a.tokens, a.tree, a.stats, a.lexer, show_derivation=a.derivacao, skip_semantic=a.skip_sem))
+    sys.exit(analyse(src, a.tokens, a.tree, a.stats, show_derivation=a.derivacao, skip_semantic=a.skip_sem))
 
 
 if __name__ == "__main__":

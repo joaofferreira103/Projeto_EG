@@ -1,0 +1,4 @@
+// expect: divisionByZero
+home "t" {
+  const half : int = 1 / 0;
+}
