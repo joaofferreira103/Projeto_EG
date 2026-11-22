@@ -6,17 +6,21 @@ Módulo de Análise Semântica para a linguagem Domo.
 from typing import Dict, List, Optional, Set, Tuple
 from lark import Tree, Token
 
+# "effects": propriedades que cada comando altera (usado pelas representações intermédias,
+# para saber que lamp.turn_on() muda lamp.power e pode disparar "on change lamp.power").
 DEVICE_CATALOG = {
     "light": {
         "props": {"power": ("bool", "ro")},
         "commands": {"turn_on": [], "turn_off": [], "toggle": []},
         "events": set(),
+        "effects": {"turn_on": ["power"], "turn_off": ["power"], "toggle": ["power"]},
     },
     "dimmer": {
         "props": {"power": ("bool", "ro"), "brightness": ("int", "rw")},
         "commands": {"turn_on": [], "turn_off": [], "toggle": [], "fade_to": ["int"]},
         "events": set(),
         "ranges": {"brightness": (0, 100), "fade_to": (0, 100)},
+        "effects": {"turn_on": ["power"], "turn_off": ["power"], "toggle": ["power"], "fade_to": ["brightness"]},
     },
     "thermostat": {
         "props": {"target_temp": ("real", "rw"), "current_temp": ("real", "ro")},
@@ -37,6 +41,7 @@ DEVICE_CATALOG = {
         "props": {"locked": ("bool", "ro")},
         "commands": {"lock": [], "unlock": []},
         "events": {"opened"},
+        "effects": {"lock": ["locked"], "unlock": ["locked"]},
     },
     "blind": {
         "props": {"position": ("int", "rw")},
@@ -48,6 +53,7 @@ DEVICE_CATALOG = {
         "props": {"power": ("bool", "ro"), "consumption": ("real", "ro")},
         "commands": {"turn_on": [], "turn_off": []},
         "events": set(),
+        "effects": {"turn_on": ["power"], "turn_off": ["power"]},
     },
 }
 
@@ -61,6 +67,32 @@ class Symbol:
         self.rw = rw
         self.meta = meta
         self.init = init
+        self.scope: Optional["Scope"] = None
+
+    @property
+    def qualname(self) -> str:
+        """Nome com o caminho de zonas (Floor1.Living.lamp). Os locais ficam só com o nome."""
+        if self.scope is None or self.scope.is_block:
+            return self.name
+        parts, s = [self.name], self.scope
+        while s.parent is not None:
+            parts.append(s.name)
+            s = s.parent
+        return ".".join(reversed(parts))
+
+    def __repr__(self) -> str:
+        return f"<{self.kind} {self.qualname}>"
+
+
+class Resolution:
+    """O que uma referência designa, tal como a semântica a resolveu.
+    Num acesso a membro (lamp.brightness), symbol é o dispositivo e member o membro."""
+    def __init__(self, symbol: Symbol, member: Optional[str], kind: str, type_name: str, rw: str):
+        self.symbol = symbol
+        self.member = member
+        self.kind = kind
+        self.type_name = type_name
+        self.rw = rw
 
 class Scope:
     def __init__(self, name: str, parent: Optional["Scope"] = None, is_block: bool = False):
@@ -74,6 +106,7 @@ class Scope:
         if name in self.symbols:
             return False
         self.symbols[name] = symbol
+        symbol.scope = self
         return True
 
     def resolve_local(self, name: str) -> Optional[Symbol]:
@@ -101,6 +134,10 @@ class SemanticAnalyzer:
         self.scene_calls: Dict[Symbol, Set[Symbol]] = {}
         self.const_deps: Dict[Symbol, Set[Symbol]] = {}
         self.groups: List[Tuple[Tree, Scope, Symbol]] = []
+        # Resultados guardados para a construção do AST (chave: id do nó Lark)
+        self.resolutions: Dict[int, Resolution] = {}
+        self.decl_symbols: Dict[int, Symbol] = {}
+        self.expr_types: Dict[int, Optional[str]] = {}
 
     def add_error(self, code: str, msg: str, token_or_tree):
         where = getattr(token_or_tree, "meta", token_or_tree)
@@ -132,7 +169,9 @@ class SemanticAnalyzer:
         if node.data == "zone_decl":
             name_token = node.children[0]
             zone_name = str(name_token)
-            if not current_scope.define(zone_name, Symbol(zone_name, "zone", "zone", meta=name_token)):
+            zone_sym = Symbol(zone_name, "zone", "zone", meta=name_token)
+            self.decl_symbols[id(node)] = zone_sym
+            if not current_scope.define(zone_name, zone_sym):
                 self.add_error("duplicate", f"Identificador duplicado no mesmo âmbito: '{zone_name}'", name_token)
 
             zone_scope = Scope(zone_name, parent=current_scope)
@@ -151,7 +190,9 @@ class SemanticAnalyzer:
             if dev_type not in DEVICE_CATALOG:
                 self.add_error("unknownDeviceType", f"O tipo de dispositivo '{dev_type}' não existe no catálogo.", dev_type_token)
 
-            if not current_scope.define(dev_name, Symbol(dev_name, "device", dev_type, meta=name_token)):
+            dev_sym = Symbol(dev_name, "device", dev_type, meta=name_token)
+            self.decl_symbols[id(node)] = dev_sym
+            if not current_scope.define(dev_name, dev_sym):
                 self.add_error("duplicate", f"Identificador duplicado no mesmo âmbito: '{dev_name}'", name_token)
             return
 
@@ -163,7 +204,9 @@ class SemanticAnalyzer:
             rw = "ro" if is_const else "rw"
 
             init = (node.children[2], current_scope) if is_const else None
-            if not current_scope.define(var_name, Symbol(var_name, "const" if is_const else "var", type_name, rw=rw, meta=name_token, init=init)):
+            var_sym = Symbol(var_name, "const" if is_const else "var", type_name, rw=rw, meta=name_token, init=init)
+            self.decl_symbols[id(node)] = var_sym
+            if not current_scope.define(var_name, var_sym):
                 self.add_error("duplicate", f"Identificador duplicado no mesmo âmbito: '{var_name}'", name_token)
             return
 
@@ -171,6 +214,7 @@ class SemanticAnalyzer:
             name_token = node.children[0]
             grp_name = str(name_token)
             grp_sym = Symbol(grp_name, "group", "group", meta=name_token)
+            self.decl_symbols[id(node)] = grp_sym
             if not current_scope.define(grp_name, grp_sym):
                 self.add_error("duplicate", f"Identificador duplicado no mesmo âmbito: '{grp_name}'", name_token)
             self.groups.append((node, current_scope, grp_sym))
@@ -179,14 +223,18 @@ class SemanticAnalyzer:
         if node.data == "scene_decl":
             name_token = node.children[0]
             scene_name = str(name_token)
-            if not current_scope.define(scene_name, Symbol(scene_name, "scene", "scene", meta=name_token)):
+            scene_sym = Symbol(scene_name, "scene", "scene", meta=name_token)
+            self.decl_symbols[id(node)] = scene_sym
+            if not current_scope.define(scene_name, scene_sym):
                 self.add_error("duplicate", f"Identificador duplicado no mesmo âmbito: '{scene_name}'", name_token)
             return
 
         if node.data == "rule_decl":
             name_token = node.children[0]
             rule_name = str(name_token)
-            if not current_scope.define(rule_name, Symbol(rule_name, "rule", "rule", meta=name_token)):
+            rule_sym = Symbol(rule_name, "rule", "rule", meta=name_token)
+            self.decl_symbols[id(node)] = rule_sym
+            if not current_scope.define(rule_name, rule_sym):
                 self.add_error("duplicate", f"Identificador duplicado no mesmo âmbito: '{rule_name}'", name_token)
             return
 
@@ -225,6 +273,11 @@ class SemanticAnalyzer:
             i += 1
         return sym if i == len(tokens) else None
 
+    def record(self, ref_node: Tree, symbol: Symbol, member: Optional[str], kind: str, type_name: str, rw: str):
+        """Guarda a resolução de ref_node e devolve-a no formato de resolve_ref_path."""
+        self.resolutions[id(ref_node)] = Resolution(symbol, member, kind, type_name, rw)
+        return type_name, rw, kind
+
     def resolve_ref_path(self, ref_node: Tree, scope: Scope) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         tokens = self.extract_ref_tokens(ref_node)
         first_token = tokens[0]
@@ -236,7 +289,7 @@ class SemanticAnalyzer:
             return None, None, None
 
         if len(tokens) == 1:
-            return sym.type_name, sym.rw, sym.kind
+            return self.record(ref_node, sym, None, sym.kind, sym.type_name, sym.rw)
 
         curr_scope = scope
         curr_sym = sym
@@ -256,7 +309,7 @@ class SemanticAnalyzer:
             i += 1
 
         if i == len(tokens):
-            return curr_sym.type_name, curr_sym.rw, curr_sym.kind
+            return self.record(ref_node, curr_sym, None, curr_sym.kind, curr_sym.type_name, curr_sym.rw)
 
         if curr_sym.kind != "device":
             self.add_error("noSuchMember", f"'{curr_sym.name}' não permite acesso a membros.", tokens[i])
@@ -275,24 +328,30 @@ class SemanticAnalyzer:
             if i + 1 < len(tokens):
                 self.add_error("noSuchMember", f"Propriedade '{member_name}' não permite acesso a membros.", tokens[i + 1])
                 return None, None, None
-            return prop_type, prop_rw, "property"
+            return self.record(ref_node, curr_sym, member_name, "property", prop_type, prop_rw)
 
         if member_name in dev_info["commands"]:
             if i + 1 < len(tokens):
                 self.add_error("noSuchMember", f"Comando '{member_name}' não permite acesso a membros.", tokens[i + 1])
                 return None, None, None
-            return "command", "ro", "command"
+            return self.record(ref_node, curr_sym, member_name, "command", "command", "ro")
 
         if member_name in dev_info["events"]:
             if i + 1 < len(tokens):
                 self.add_error("noSuchMember", f"Evento '{member_name}' não permite acesso a membros.", tokens[i + 1])
                 return None, None, None
-            return "event", "ro", "event"
+            return self.record(ref_node, curr_sym, member_name, "event", "event", "ro")
 
         self.add_error("noSuchMember", f"Dispositivo '{curr_sym.name}' do tipo '{dev_type}' não tem o membro '{member_name}'.", member_token)
         return None, None, None
 
     def eval_expr_type(self, node: Tree, scope: Scope) -> Optional[str]:
+        """Tipo de uma expressão (atributo type). Fica guardado para o AST."""
+        t = self._expr_type(node, scope)
+        self.expr_types[id(node)] = t
+        return t
+
+    def _expr_type(self, node: Tree, scope: Scope) -> Optional[str]:
         data = node.data
         if data == "int_lit": return "int"
         if data == "real_lit": return "real"
@@ -543,7 +602,9 @@ class SemanticAnalyzer:
             if current_scope.is_block:
                 rw = "ro" if is_const else "rw"
                 init = (expr_node, current_scope) if is_const else None
-                if not current_scope.define(var_name, Symbol(var_name, "const" if is_const else "var", type_name, rw=rw, meta=name_token, init=init)):
+                var_sym = Symbol(var_name, "const" if is_const else "var", type_name, rw=rw, meta=name_token, init=init)
+                self.decl_symbols[id(node)] = var_sym
+                if not current_scope.define(var_name, var_sym):
                     self.add_error("duplicate", f"Identificador local duplicado: '{var_name}'", name_token)
             return
 
@@ -629,7 +690,9 @@ class SemanticAnalyzer:
             if len(node.children) > 2 and isinstance(node.children[2], Tree):
                 for_block = node.children[2]
                 for_scope = Scope("block", parent=current_scope, is_block=True)
-                for_scope.define(str(var_token), Symbol(str(var_token), "device", t if kind == "group" else "device"))
+                loop_sym = Symbol(str(var_token), "device", t if kind == "group" else "device", meta=var_token)
+                self.decl_symbols[id(node)] = loop_sym
+                for_scope.define(str(var_token), loop_sym)
                 for child in for_block.children:
                     if isinstance(child, Tree):
                         self.pass2_check(child, for_scope, current_scene)
@@ -704,6 +767,9 @@ class SemanticAnalyzer:
         self.scene_calls.clear()
         self.const_deps.clear()
         self.groups.clear()
+        self.resolutions.clear()
+        self.decl_symbols.clear()
+        self.expr_types.clear()
         self.pass1_collect(tree, Scope("root"))
         self.check_groups()
         self.pass2_check(tree, self.global_scope)

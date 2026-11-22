@@ -1,18 +1,9 @@
-#!/usr/bin/env python3
-"""Bateria de testes léxicos, sintáticos e semânticos. Uso: python testes.py"""
-import logging
-from pathlib import Path
+"""Programas de teste da Parte I, partilhados por test_gramatica.py e qualidade.py.
 
-from analisador import build_parser, lexical_analysis, syntactic_analysis
-from semantic import SemanticAnalyzer
-
-OK, LEX, SYN, SEM = "OK", "LEX", "SYN", "SEM"
-
-def prog(body: str) -> str:
-    return f'home "t" {{ {body} }}'
-
-def stm(body: str) -> str:
-    return prog(f"scene S {{ {body} }}")
+CASOS:         (nome, programa, resultado esperado: OK, LEX, SYN ou SEM)
+CASOS_CODIGOS: (nome, programa, códigos de erro semântico esperados, por ordem)
+"""
+from .comum import LEX, OK, SEM, SYN, prog, stm
 
 CASOS = [
     ("programa vazio",                       prog(""), OK),
@@ -124,83 +115,3 @@ CASOS_CODIGOS = [
     ("ciclo não bloqueia o cálculo", prog("const a : int = 1 / a;"), ["cyclicInit"]),
     ("vários erros",                prog("device x : nope; scene S { y = 1; }"), ["unknownDeviceType", "undeclared"]),
 ]
-
-EXEMPLOS = Path(__file__).with_name("examples")
-
-def casos_de_ficheiros():
-    for f in sorted((EXEMPLOS / "valid").glob("*.domo")):
-        yield (f"valid/{f.name}", f.read_text(encoding="utf-8"), OK)
-
-def casos_de_ficheiros_codigos():
-    """Os ficheiros inválidos têm de falhar com o código indicado em '// expect:'."""
-    for f in sorted((EXEMPLOS / "invalid_semantic").glob("*.domo")):
-        src = f.read_text(encoding="utf-8")
-        yield (f"invalid_semantic/{f.name}", src, [src.split("expect:")[1].split()[0]])
-
-def codigos(parser, src):
-    tree, _ = syntactic_analysis(parser, src)
-    if tree is None:
-        return ["<erro sintático>"]
-    return [e.code for e in SemanticAnalyzer().analyze(tree)]
-
-def classifica(parser, src):
-    _, lex_err = lexical_analysis(parser, src)
-    if lex_err:
-        return LEX
-    tree, syn_err = syntactic_analysis(parser, src)
-    if syn_err:
-        return SYN
-    sem_err = SemanticAnalyzer().analyze(tree)
-    if sem_err:
-        return SEM
-    return OK
-
-def conflitos_lalr():
-    from lark import logger
-    avisos = []
-    class H(logging.Handler):
-        def emit(self, r): avisos.append(r.getMessage())
-    h, antigo = H(), logger.level
-    logger.addHandler(h); logger.setLevel(logging.DEBUG)
-    try:
-        build_parser(debug=True)
-        return [a for a in avisos if "onflict" in a], None
-    except Exception as e:
-        return [], str(e)
-    finally:
-        logger.removeHandler(h); logger.setLevel(antigo)
-
-if __name__ == "__main__":
-    print("== Gramática ==")
-    conf, exc = conflitos_lalr()
-    if exc:
-        print("ERRO ao construir LALR:", exc)
-    else:
-        print(f"Conflitos shift/reduce ou reduce/reduce: {len(conf)}  (esperado: 0)")
-        for c in conf: print("  ", c)
-
-    print("\n== Testes ==")
-    p = build_parser()
-    falhas = 0
-    todos = CASOS + list(casos_de_ficheiros())
-    for nome, src, esperado in todos:
-        obtido = classifica(p, src)
-        ok = obtido == esperado
-        falhas += not ok
-        print(f"{'✓' if ok else '✗'}  {esperado:<3} {nome}" + ("" if ok else f"   (obtido: {obtido})"))
-    print("\n== Códigos de erro semântico ==")
-    com_codigo = CASOS_CODIGOS + list(casos_de_ficheiros_codigos())
-    for nome, src, esperado in com_codigo:
-        obtido = codigos(p, src)
-        ok = obtido == esperado
-        falhas += not ok
-        print(f"{'✓' if ok else '✗'}  {nome}: {esperado or 'aceite'}" + ("" if ok else f"   (obtido: {obtido})"))
-    arvore = syntactic_analysis(p, stm("x = 1;"))[0]
-    posicao_ok = all(e.line > 0 for e in SemanticAnalyzer().analyze(arvore))
-    arvore = syntactic_analysis(p, prog("device a : dimmer;\nscene S { a.brightness = true; }"))[0]
-    posicao_ok = posicao_ok and all(e.line == 2 for e in SemanticAnalyzer().analyze(arvore))
-    falhas += not posicao_ok
-    print(f"{'✓' if posicao_ok else '✗'}  erros indicam a linha correta")
-    total = len(todos) + len(com_codigo) + 1
-    print(f"\n{total - falhas}/{total} testes passaram")
-    raise SystemExit(1 if falhas else 0)

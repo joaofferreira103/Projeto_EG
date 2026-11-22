@@ -1,6 +1,6 @@
 # Gramática de atributos
 
-Este documento especifica um subconjunto da semântica da linguagem Domo: âmbitos e declarações, membros de dispositivos e tipos das expressões. As produções são as de [domo.lark](domo.lark), sem o prefixo `_` nos nomes das regras e com as produções unitárias simplificadas.
+Este documento especifica um subconjunto da semântica da linguagem Domo: âmbitos e declarações, membros de dispositivos e tipos das expressões. As produções são as de [domo.lark](../domo/domo.lark), sem o prefixo `_` nos nomes das regras e com as produções unitárias simplificadas.
 
 A parte mais relevante é a ordem de avaliação: numa zona, a ordem das declarações é livre, e num bloco não é. A gramática exprime esta diferença só com as dependências entre atributos.
 
@@ -259,7 +259,7 @@ linha 4, coluna 5: [typeMismatch] Tipo incompatível na atribuição.
 
 ## 6. Relação com a implementação
 
-[semantic.py](semantic.py) é um percurso da árvore que calcula os mesmos valores, pela ordem da secção 4:
+[semantic.py](../domo/semantic.py) é um percurso da árvore que calcula os mesmos valores, pela ordem da secção 4:
 
 | Fase | Atributos | Implementação |
 |---|---|---|

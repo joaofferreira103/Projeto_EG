@@ -23,7 +23,7 @@ home "Estudio" {
 
 ## A gramática
 
-A gramática está em [domo.lark](domo.lark), escrita em BNF para o Lark, e é analisada com LALR(1). Tem 65 terminais, 41 não-terminais e 97 produções, sem conflitos, pelo que não é ambígua.
+A gramática está em [domo/domo.lark](domo/domo.lark), escrita em BNF para o Lark, e é analisada com LALR(1). Tem 65 terminais, 41 não-terminais e 97 produções, sem conflitos, pelo que não é ambígua.
 
 ### Estrutura do programa
 
@@ -83,17 +83,53 @@ A recursão à esquerda dá a associatividade pretendida, mas faz com que a gram
 
 A árvore fica assim simples. Para ver a derivação completa, usa-se a opção `--derivacao`.
 
+## Estrutura do repositório
+
+```
+domo/              código da ferramenta (pacote Python)
+  domo.lark          gramática
+  parser.py          análise léxica e sintática
+  semantic.py        análise semântica e catálogo de dispositivos
+  analisador.py      linha de comandos da Parte I (léxica → sintática → semântica)
+  ast.py builder.py  AST elaborado, construído a partir da árvore do Lark e da semântica
+  pretty.py          AST → código Domo
+  locations.py       variáveis e propriedades lidas e escritas
+  cfg.py             grafo de fluxo de controlo de cada regra e cena
+  dataflow.py        framework de fluxo de dados e cadeias definição-uso
+  interaction.py     grafo de interação entre regras
+  render.py          exportação de grafos para DOT, Mermaid e SVG
+testes/            verificação
+  __main__.py        corre a bateria de testes (python -m testes)
+  casos.py           programas de teste da Parte I
+  test_*.py          testes por fase: gramatica, ast, ir
+  qualidade.py       métricas e avaliação da gramática
+docs/              documentação para o relatório
+  GRAMATICA_ATRIBUTOS.md, QUALIDADE.md, REPRESENTACOES.md
+  enunciados/        enunciados do TP1 e do TP2
+examples/          programas Domo: valid/ e invalid_semantic/ (um por código de erro)
+experimentos/      estudos pontuais (avaliação do LarkAG)
+```
+
 ## Como executar
+
+Na raiz do repositório:
 
 ```
 pip install -r requirements.txt
-python analisador.py examples/valid/02_typical.domo
-python analisador.py examples/valid/02_typical.domo --tree
-python analisador.py examples/valid/02_typical.domo --derivacao
-python testes.py
-python qualidade.py
+
+python -m domo.analisador examples/valid/02_typical.domo               # análise completa
+python -m domo.analisador examples/valid/02_typical.domo --tree        # árvore sintática
+python -m domo.analisador examples/valid/02_typical.domo --derivacao   # árvore de derivação
+
+python -m domo.pretty examples/valid/03_full.domo                      # código regenerado a partir do AST
+python -m domo.cfg examples/valid/03_full.domo --unidade keep_warm --defuse
+python -m domo.cfg examples/valid/03_full.domo --blocos --formato svg -o cfg.svg
+python -m domo.interaction examples/valid/03_full.domo --formato svg -o interacao.svg
+
+python -m testes                  # bateria de testes (ou só algumas secções: gramatica, ast, ir)
+python -m testes.qualidade        # métricas da gramática
 ```
 
-`testes.py` corre a bateria de testes e `qualidade.py` calcula as métricas da gramática. A avaliação da linguagem e da gramática está em [QUALIDADE.md](QUALIDADE.md).
+O formato `svg` precisa do Graphviz (`dot`). Os formatos `dot` e `mermaid` não precisam.
 
-A especificação de parte da semântica está em [GRAMATICA_ATRIBUTOS.md](GRAMATICA_ATRIBUTOS.md).
+A avaliação da linguagem e da gramática está em [docs/QUALIDADE.md](docs/QUALIDADE.md), a especificação de parte da semântica em [docs/GRAMATICA_ATRIBUTOS.md](docs/GRAMATICA_ATRIBUTOS.md) e as representações intermédias da Parte II em [docs/REPRESENTACOES.md](docs/REPRESENTACOES.md).

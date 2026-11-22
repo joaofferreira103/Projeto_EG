@@ -1,6 +1,6 @@
 # Qualidade da linguagem e da gramática (Tarefa 4)
 
-Os valores da gramática são calculados por `python qualidade.py`, a partir de `domo.lark` e da bateria de testes.
+Os valores da gramática são calculados por `python -m testes.qualidade`, a partir de `domo.lark` e da bateria de testes.
 Sempre que a gramática mudar, volte a correr o script e atualize as tabelas.
 
 **Conclusão.** A gramática é correta, não ambígua e totalmente coberta pelos testes. A linguagem é pequena e cumpre o objetivo de detetar erros antes de chegar à casa. O ponto fraco principal é de ortogonalidade (construções que só aceitam literais), e não de sintaxe.
