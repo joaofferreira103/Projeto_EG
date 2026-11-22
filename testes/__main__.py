@@ -2,14 +2,14 @@
 
 Uso (na raiz do repositório):
     python -m testes                 # todas as secções
-    python -m testes gramatica ast   # só algumas: gramatica, ast
+    python -m testes gramatica ir    # só algumas: gramatica, ast, ir
 """
 import sys
 
-from . import test_ast, test_gramatica
+from . import test_ast, test_gramatica, test_ir
 from .comum import Relatorio
 
-SECOES = {"gramatica": test_gramatica, "ast": test_ast}
+SECOES = {"gramatica": test_gramatica, "ast": test_ast, "ir": test_ir}
 
 
 def main(argv):

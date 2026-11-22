@@ -6,17 +6,21 @@ Módulo de Análise Semântica para a linguagem Domo.
 from typing import Dict, List, Optional, Set, Tuple
 from lark import Tree, Token
 
+# "effects": propriedades que cada comando altera (usado pelas representações intermédias,
+# para saber que lamp.turn_on() muda lamp.power e pode disparar "on change lamp.power").
 DEVICE_CATALOG = {
     "light": {
         "props": {"power": ("bool", "ro")},
         "commands": {"turn_on": [], "turn_off": [], "toggle": []},
         "events": set(),
+        "effects": {"turn_on": ["power"], "turn_off": ["power"], "toggle": ["power"]},
     },
     "dimmer": {
         "props": {"power": ("bool", "ro"), "brightness": ("int", "rw")},
         "commands": {"turn_on": [], "turn_off": [], "toggle": [], "fade_to": ["int"]},
         "events": set(),
         "ranges": {"brightness": (0, 100), "fade_to": (0, 100)},
+        "effects": {"turn_on": ["power"], "turn_off": ["power"], "toggle": ["power"], "fade_to": ["brightness"]},
     },
     "thermostat": {
         "props": {"target_temp": ("real", "rw"), "current_temp": ("real", "ro")},
@@ -37,6 +41,7 @@ DEVICE_CATALOG = {
         "props": {"locked": ("bool", "ro")},
         "commands": {"lock": [], "unlock": []},
         "events": {"opened"},
+        "effects": {"lock": ["locked"], "unlock": ["locked"]},
     },
     "blind": {
         "props": {"position": ("int", "rw")},
@@ -48,6 +53,7 @@ DEVICE_CATALOG = {
         "props": {"power": ("bool", "ro"), "consumption": ("real", "ro")},
         "commands": {"turn_on": [], "turn_off": []},
         "events": set(),
+        "effects": {"turn_on": ["power"], "turn_off": ["power"]},
     },
 }
 
