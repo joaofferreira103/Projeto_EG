@@ -23,7 +23,7 @@ home "Estudio" {
 
 ## A gramática
 
-A gramática está em [domo.lark](domo.lark), escrita em BNF para o Lark, e é analisada com LALR(1). Tem 65 terminais, 41 não-terminais e 97 produções, sem conflitos, pelo que não é ambígua.
+A gramática está em [domo/domo.lark](domo/domo.lark), escrita em BNF para o Lark, e é analisada com LALR(1). Tem 65 terminais, 41 não-terminais e 97 produções, sem conflitos, pelo que não é ambígua.
 
 ### Estrutura do programa
 
@@ -83,17 +83,41 @@ A recursão à esquerda dá a associatividade pretendida, mas faz com que a gram
 
 A árvore fica assim simples. Para ver a derivação completa, usa-se a opção `--derivacao`.
 
+## Estrutura do repositório
+
+```
+domo/              código da ferramenta (pacote Python)
+  domo.lark          gramática
+  parser.py          análise léxica e sintática
+  semantic.py        análise semântica e catálogo de dispositivos
+  analisador.py      linha de comandos da Parte I (léxica → sintática → semântica)
+testes/            verificação
+  __main__.py        corre a bateria de testes (python -m testes)
+  casos.py           programas de teste da Parte I
+  test_gramatica.py  testes da Parte I
+  qualidade.py       métricas e avaliação da gramática
+docs/              documentação para o relatório
+  GRAMATICA_ATRIBUTOS.md, QUALIDADE.md
+  enunciados/        enunciados do TP1 e do TP2
+examples/          programas Domo: valid/ e invalid_semantic/ (um por código de erro)
+experimentos/      estudos pontuais (avaliação do LarkAG)
+```
+
 ## Como executar
+
+Na raiz do repositório:
 
 ```
 pip install -r requirements.txt
-python analisador.py examples/valid/02_typical.domo
-python analisador.py examples/valid/02_typical.domo --tree
-python analisador.py examples/valid/02_typical.domo --derivacao
-python testes.py
-python qualidade.py
+
+python -m domo.analisador examples/valid/02_typical.domo               # análise completa
+python -m domo.analisador examples/valid/02_typical.domo --tree        # árvore sintática
+python -m domo.analisador examples/valid/02_typical.domo --derivacao   # árvore de derivação
+
+
+python -m testes                  # bateria de testes
+python -m testes.qualidade        # métricas da gramática
 ```
 
-`testes.py` corre a bateria de testes e `qualidade.py` calcula as métricas da gramática. A avaliação da linguagem e da gramática está em [QUALIDADE.md](QUALIDADE.md).
 
-A especificação de parte da semântica está em [GRAMATICA_ATRIBUTOS.md](GRAMATICA_ATRIBUTOS.md).
+A avaliação da linguagem e da gramática está em [docs/QUALIDADE.md](docs/QUALIDADE.md) e a especificação de parte da semântica em [docs/GRAMATICA_ATRIBUTOS.md](docs/GRAMATICA_ATRIBUTOS.md).

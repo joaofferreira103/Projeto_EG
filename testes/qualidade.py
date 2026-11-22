@@ -3,7 +3,7 @@
 Avaliação da qualidade da gramática e da linguagem (Tarefa 4 do enunciado).
 
 Todos os valores são calculados a partir de domo.lark e dos testes existentes,
-por isso continuam certos se a gramática mudar. Uso: python qualidade.py
+por isso continuam certos se a gramática mudar. Uso: python -m testes.qualidade
 
 Código de saída: 0 se todas as verificações obrigatórias passarem, 1 caso contrário.
 Métricas de tamanho e de estrutura baseadas em Power & Malloy, "A metrics suite for
@@ -17,9 +17,10 @@ from lark import Lark, Tree, logger
 from lark.exceptions import GrammarError
 from lark.lexer import PatternStr
 
-from analisador import GRAMMAR, build_derivation_parser, build_parser, lexical_analysis, syntactic_analysis
-from semantic import SemanticAnalyzer
-from testes import CASOS, CASOS_CODIGOS, EXEMPLOS, OK, SEM
+from domo.parser import GRAMMAR, build_derivation_parser, build_parser, lexical_analysis, syntactic_analysis
+from domo.semantic import SemanticAnalyzer
+from .casos import CASOS, CASOS_CODIGOS
+from .comum import EXEMPLOS, OK, SEM
 
 PALAVRAS_RESERVADAS = set("""home zone device var const group scene rule
     priority on change signal at every when
